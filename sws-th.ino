@@ -121,6 +121,9 @@ struct entry *create_entry(unsigned char ident, unsigned char channel,
 			   unsigned char humidity) {
 	struct entry *e = (struct entry *) malloc(sizeof(struct entry));
 
+	if (!e)
+		println("Can't allocate memory!");
+
 	e->ident = ident;
 	e->channel = channel;
 	e->timestamp = timestamp;
@@ -132,6 +135,7 @@ struct entry *create_entry(unsigned char ident, unsigned char channel,
 
 inline int update_entry(struct entry *e, unsigned long timestamp,
 		 unsigned short temp, unsigned char humidity) {
+	/* TODO: might use redondency for error correction */
 	if(e->timestamp == timestamp)
 		/*
 		 * We receive a lot of duplicate,
@@ -359,11 +363,9 @@ void loop()
 
 		unsigned long current_time = micros() / 1000000;
 		int humidity, temp_deci, ident, channel;
-		unsigned int data_u8[MAX_DATASZ / 8 + 1];
 		unsigned char data_u4[MAX_DATASZ / 4 + 1];
 		
 		memset(data_u4, 0, dataframesz / 4 + 1);
-		memset(data_u8, 0, sizeof(int) * (dataframesz / 8 + 1));
 		
 		print("Received ");
 		print(dataframesz);
@@ -375,11 +377,7 @@ void loop()
 		error_stat();
 
 		for (int i = 0; i < dataframesz; i++) {
-			int idx4 = i / 4, offset4 = i % 4;
-			int idx8 = i / 8, offset8 = i % 8;
-
-			data_u4[idx4] += (dataframe[i] << (3 - offset4));
-			data_u8[idx8] += (dataframe[i] << (7 - offset8));
+			data_u4[i / 4] += (dataframe[i] << (3 - (i % 4)));
 		}
 
 #if DEBUG >= 2
@@ -392,11 +390,6 @@ void loop()
 
 		for (int i = 0; i < dataframesz / 4; i++) {
 			print(data_u4[i]);
-			print(' ');
-		}
-		println("");
-		for (int i = 0; i < dataframesz / 8; i++) {
-			print(data_u8[i]);
 			print(' ');
 		}
 		println("");
