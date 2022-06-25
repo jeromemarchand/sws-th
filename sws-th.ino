@@ -5,8 +5,9 @@
  */
 
 #include "ArduinoBLE.h"
+#include <limits.h>
 
-#define DEBUG 2
+#define DEBUG 1
 #ifdef DEBUG
 
 #define SCREEN_WIDTH 128
@@ -69,6 +70,8 @@ inline void error_stat() {}
 #define DATASZ2 41
 #define SYNC_SEQ_LEN 8
 #define MAX_DATASZ MAX(DATASZ1, DATASZ2)
+#define MAX_ENTRY_AGE 3600 /* Don't keep entry older than 1h */
+#define CLEANUP_FREQ 600   /* Cleanup stale entries every 10 mins */
 
 #define VALUES 9
 #define VALUE0_MIN 200
@@ -173,7 +176,44 @@ int add_entry(unsigned char ident, unsigned char channel,
 	return true;
 }
 
-#if DEBUG >= 2
+void remove_entry(struct entry *e, struct entry *prev) {
+	if (!prev) {
+#ifdef DEBUG
+		if (e != head) {
+			println("ERROR: removing head");
+			return;
+		} else
+#endif
+			head = NULL;
+	} else {
+#ifdef DEBUG
+		if (prev->next != e) {
+			println("ERROR: removing entry");
+			return;
+		} else
+#endif
+			prev->next = e->next;
+	}
+	free(e);
+}
+
+unsigned long age(unsigned long old, unsigned long current) {
+	if (current >= old)
+		return current - old;
+	else /* Overflow detected */
+		return ULONG_MAX - old + current;
+}
+
+void cleanup_stale_entry(unsigned long current_time) {
+	struct entry *prev = head, *e;
+	for (e = head; e != NULL; e = e->next) {
+		if (age(e->timestamp, current_time) > MAX_ENTRY_AGE)
+			remove_entry(e, prev);
+		prev = e;
+	}
+}
+
+#if DEBUG >= 1
 void print_entry(struct entry *e) {
 	print(e->ident);
 	print("/");
@@ -200,6 +240,7 @@ unsigned long timings[RING_BUFFER_SIZE];
 volatile char dataframe[MAX_DATASZ];
 volatile int dataframesz;
 volatile int data_ready = 0;
+unsigned long last_cleanup = 0;
 
 BLEService TempSensor("fff0");
 BLEIntCharacteristic Temperature("fff1", BLERead | BLEIndicate);
@@ -383,10 +424,11 @@ void setup()
 
 void loop()
 {
+	unsigned long current_time = millis() / 1000;
+
 	if (data_ready) {
 		noInterrupts();
 
-		unsigned long current_time = micros() / 1000000;
 		int humidity, temp_deci, ident, channel;
 		unsigned char data_u4[MAX_DATASZ / 4 + 1];
 		
@@ -460,13 +502,22 @@ void loop()
 		if (data_ready ==1) {			
 			add_entry(ident, channel, current_time,
 				  temp_deci, humidity);
+#if DEBUG >= 2
 			print_all_entries();
+#endif
 		}
 		/* TODO: Wrong value here */
 		Temperature.setValue(temp_deci);
 		
 		data_ready = 0;
 		interrupts();
+	}
+	if (age(last_cleanup, current_time) > CLEANUP_FREQ) {
+		println("Cleanup:");
+		print_all_entries();
+		cleanup_stale_entry(current_time);
+		print_all_entries();
+		last_cleanup = current_time;
 	}
 
 #if DEBUG >= 3
