@@ -6,7 +6,7 @@
 
 #include "ArduinoBLE.h"
 
-#define DEBUG 1
+#define DEBUG 2
 #ifdef DEBUG
 
 #define SCREEN_WIDTH 128
@@ -129,6 +129,7 @@ struct entry *create_entry(unsigned char ident, unsigned char channel,
 	e->timestamp = timestamp;
 	e->temp = temp;
 	e->humidity = humidity;
+	e->next = NULL;
 
 	return e;
 }
@@ -153,22 +154,46 @@ inline int update_entry(struct entry *e, unsigned long timestamp,
 int add_entry(unsigned char ident, unsigned char channel,
 	      unsigned long timestamp, unsigned short temp,
 	      unsigned char humidity) {
-	struct entry *e;
+	struct entry *prev = head, *e;
 
-	if (head == NULL) {
-		head = create_entry(ident, channel, timestamp, temp, humidity);
-		return true;
-	}
-
-	for (e = head; e->next != NULL; e = e->next) {
+	for (e = head; e != NULL; e = e->next) {
 		if ((e->ident == ident) && (e->channel == channel)) {
 			update_entry(e, timestamp, temp, humidity);
 			return false;
 		}
+		prev = e;
 	}
-	e->next = create_entry(ident, channel, timestamp, temp, humidity);
-	return true;	
+
+	e = create_entry(ident, channel, timestamp, temp, humidity);
+	if (!head)
+		head = e;
+	else
+		prev->next = e;
+
+	return true;
 }
+
+#if DEBUG >= 2
+void print_entry(struct entry *e) {
+	print(e->ident);
+	print("/");
+	print(e->channel);
+	print(":\t");
+	print(e->timestamp);
+	print("s\t");
+	print(e->temp);
+	print("dC\t");
+	print(e->humidity);
+	println("%");
+}
+void print_all_entries() {
+	struct entry *e;
+	for (e = head; e != NULL; e = e->next)
+		print_entry(e);
+}
+#else
+void print_all_entries() {}
+#endif
 
 int irq = digitalPinToInterrupt(DATA_PIN);
 unsigned long timings[RING_BUFFER_SIZE];
@@ -435,6 +460,7 @@ void loop()
 		if (data_ready ==1) {			
 			add_entry(ident, channel, current_time,
 				  temp_deci, humidity);
+			print_all_entries();
 		}
 		/* TODO: Wrong value here */
 		Temperature.setValue(temp_deci);
