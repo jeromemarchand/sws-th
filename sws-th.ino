@@ -201,7 +201,7 @@ unsigned long age(unsigned long old, unsigned long current) {
 	if (current >= old)
 		return current - old;
 	else /* Overflow detected */
-		return ULONG_MAX - old + current;
+		return ULONG_MAX / 1000 - old + current;
 }
 
 void cleanup_stale_entry(unsigned long current_time) {
