@@ -3,16 +3,18 @@
  * with a RF433 module
  *
  */
-
-#include "ArduinoBLE.h"
+#include <ArduinoBLE.h>
 #include <limits.h>
+//#include <stdlib.h>
 
-#define DEBUG 1
+#include "sws-th.h"
+
+#undef DEBUG
 #ifdef DEBUG
 
 #define SCREEN_WIDTH 128
-#define print(X) Serial.print(X)
-#define println(X) Serial.println(X)
+#define print(...)   Serial.print(__VA_ARGS__)
+#define println(...) Serial.println(__VA_ARGS__)
 
 unsigned long general_error = 0;
 unsigned long dataframe1_error = 0;
@@ -50,18 +52,54 @@ inline void error_stat() {
 	println("");
 }
 
+#define FREERAM_FREQ 60
+extern "C" char* sbrk(int incr);
+unsigned long last_freeram = 0;
+int freeRam() {
+	char top;
+
+	return &top - reinterpret_cast<char*>(sbrk(0));
+}
+
+void display_freeram() {
+	print(F("- SRAM left: "));
+	println(freeRam());
+}
+
 #else
 
-#define print(X)
-#define println(X)
+inline void print(...) {}
+inline void println(...) {}
 inline void inc_general_error() {}
 inline void inc_dataframe1_error() {}
 inline void inc_dataframe1_ok() {}
 inline void inc_dataframe2_error() {}
 inline void inc_dataframe2_ok() {}
 inline void error_stat() {}
+inline void display_freeram() {}
 
 #endif
+
+
+void switchled() {
+	if(digitalRead(LED_BUILTIN) == HIGH)
+		digitalWrite(LED_BUILTIN, LOW);
+	else
+		digitalWrite(LED_BUILTIN, HIGH);
+}
+
+void blink() {
+	digitalWrite(LED_BUILTIN, LOW);
+	delay(150);
+	digitalWrite(LED_BUILTIN, HIGH);
+}
+
+void panic() {
+	while(true) {
+		blink();
+		delay(150);
+	}
+}
 
 #define DATA_PIN 0
 #define RING_BUFFER_SIZE 4096
@@ -110,91 +148,100 @@ IS_VALUE(8);
 
 struct entry {
 	unsigned long timestamp;
-	unsigned short temp;
+	short temp;
 	unsigned char ident;
 	unsigned char channel;
 	unsigned char humidity;
-	struct entry *next;
+//	struct entry *next;
 };
 
 struct entry *head = NULL;
 
-struct entry *create_entry(unsigned char ident, unsigned char channel,
-			   unsigned long timestamp, unsigned short temp,
-			   unsigned char humidity) {
-	struct entry *e = (struct entry *) malloc(sizeof(struct entry));
-
-	if (!e)
-		println("Can't allocate memory!");
-
+void set_entry(struct entry *e, unsigned char ident, unsigned char channel,
+	       unsigned long timestamp, short temp, unsigned char humidity) {
 	e->ident = ident;
 	e->channel = channel;
 	e->timestamp = timestamp;
 	e->temp = temp;
 	e->humidity = humidity;
-	e->next = NULL;
-
-	return e;
+//	e->next = NULL;
 }
 
-inline int update_entry(struct entry *e, unsigned long timestamp,
-		 unsigned short temp, unsigned char humidity) {
-	/* TODO: might use redondency for error correction */
-	if(e->timestamp == timestamp)
-		/*
-		 * We receive a lot of duplicate,
-		 * no need to update each time
-		 */
-		return false;
 
-	e->timestamp = timestamp;
-	e->temp = temp;
-	e->humidity = humidity;
+/* struct entry *create_entry(unsigned char ident, unsigned char channel, */
+/* 			   unsigned long timestamp, short temp, */
+/* 			   unsigned char humidity) { */
+/* 	struct entry *e = (struct entry *) malloc(sizeof(struct entry)); */
+/* 	if (!e) */
+/* 		println("Can't allocate memory!"); */
 
-	return true;
-}
+/* 	set_entry(e, ident, channel, timestamp, temp, humidity); */
 
-int add_entry(unsigned char ident, unsigned char channel,
-	      unsigned long timestamp, unsigned short temp,
-	      unsigned char humidity) {
-	struct entry *prev = head, *e;
+/* 	return e; */
+/* } */
 
-	for (e = head; e != NULL; e = e->next) {
-		if ((e->ident == ident) && (e->channel == channel)) {
-			update_entry(e, timestamp, temp, humidity);
-			return false;
-		}
-		prev = e;
-	}
+/* inline int update_entry(struct entry *e, unsigned long timestamp, */
+/* 			short temp, unsigned char humidity) { */
+/* 	/\* TODO: might use redondency for error correction *\/ */
+/* 	if(e->timestamp == timestamp) */
+/* 		/\* */
+/* 		 * We receive a lot of duplicate, */
+/* 		 * no need to update each time */
+/* 		 *\/ */
+/* 		return false; */
 
-	e = create_entry(ident, channel, timestamp, temp, humidity);
-	if (!head)
-		head = e;
-	else
-		prev->next = e;
+/* 	e->timestamp = timestamp; */
+/* 	e->temp = temp; */
+/* 	e->humidity = humidity; */
 
-	return true;
-}
+/* 	return true; */
+/* } */
 
-void remove_entry(struct entry *e, struct entry *prev) {
-	if (!prev) {
-#ifdef DEBUG
-		if (e != head) {
-			println("ERROR: removing head");
-			return;
-		} else
-#endif
-			head = NULL;
-	} else {
-#ifdef DEBUG
-		if (prev->next != e) {
-			println("ERROR: removing entry");
-			return;
-		} else
-#endif
-			prev->next = e->next;
-	}
-	free(e);
+/* struct entry *add_entry(unsigned char ident, unsigned char channel, */
+/* 			unsigned long timestamp, short temp, */
+/* 			unsigned char humidity) { */
+/* 	struct entry *prev = head, *e; */
+
+/* 	for (e = head; e != NULL; e = e->next) { */
+/* 		if ((e->ident == ident) && (e->channel == channel)) { */
+/* 			update_entry(e, timestamp, temp, humidity); */
+/* 			return e; */
+/* 		} */
+/* 		prev = e; */
+/* 	} */
+
+/* 	e = create_entry(ident, channel, timestamp, temp, humidity); */
+/* 	if (!head) */
+/* 		head = e; */
+/* 	else */
+/* 		prev->next = e; */
+
+/* 	return e; */
+/* } */
+
+/* void remove_entry(struct entry *e, struct entry *prev) { */
+/* 	if (!prev) { */
+/* #ifdef DEBUG */
+/* 		if (e != head) { */
+/* 			println("ERROR: removing head"); */
+/* 			return; */
+/* 		} else */
+/* #endif */
+/* 			head = NULL; */
+/* 	} else { */
+/* #ifdef DEBUG */
+/* 		if (prev->next != e) { */
+/* 			println("ERROR: removing entry"); */
+/* 			return; */
+/* 		} else */
+/* #endif */
+/* 			prev->next = e->next; */
+/* 	} */
+/* 	free(e); */
+/* } */
+
+inline short int12toshort(short x) {
+	return x & 0x800 ? x | 0xf000 : x;
 }
 
 unsigned long age(unsigned long old, unsigned long current) {
@@ -204,6 +251,7 @@ unsigned long age(unsigned long old, unsigned long current) {
 		return ULONG_MAX / 1000 - old + current;
 }
 
+/*
 void cleanup_stale_entry(unsigned long current_time) {
 	struct entry *prev = head, *e;
 	for (e = head; e != NULL; e = e->next) {
@@ -211,7 +259,7 @@ void cleanup_stale_entry(unsigned long current_time) {
 			remove_entry(e, prev);
 		prev = e;
 	}
-}
+	}*/
 
 #if DEBUG >= 1
 void print_entry(struct entry *e) {
@@ -226,13 +274,14 @@ void print_entry(struct entry *e) {
 	print(e->humidity);
 	println("%");
 }
-void print_all_entries() {
+/*void print_all_entries() {
 	struct entry *e;
 	for (e = head; e != NULL; e = e->next)
 		print_entry(e);
-}
+		}*/
 #else
-void print_all_entries() {}
+void print_entry(struct entry *e) {}
+//void print_all_entries() {}
 #endif
 
 int irq = digitalPinToInterrupt(DATA_PIN);
@@ -242,9 +291,9 @@ volatile int dataframesz;
 volatile int data_ready = 0;
 unsigned long last_cleanup = 0;
 
-BLEService TempSensor("fff0");
-BLEIntCharacteristic Temperature("fff1", BLERead | BLEIndicate);
-
+BLEService TempSensor(SERVICE_TEMPSENSOR_UUID);
+BLECharacteristic Temperature(CHAR_TEMPERATURE_UUID, BLERead | BLEIndicate,
+			      9, true);
 
 char duration_to_bit(unsigned long d)
 {
@@ -395,40 +444,61 @@ void handler()
 
 void setup()
 {
-	Serial.begin(115200);
 	pinMode(DATA_PIN, INPUT);
-	attachInterrupt(irq, handler, CHANGE);
-	while (!Serial);
+	pinMode(LED_BUILTIN, OUTPUT);
+	blink();
+#ifdef DEBUG
+	Serial.begin(115200);
+	while (!Serial && millis() < 10000);
+	if (!Serial)
+		panic();
 	println("Started.");
+#endif
 
+	attachInterrupt(irq, handler, CHANGE);
 	/* Now activate the BLE device.  It will start continuously transmitting BLE
 	   advertising packets and will be visible to remote BLE central devices
 	   until it receives a new connection */
 	if (!BLE.begin()) {
-		while (1);
+		panic();
 	}
-	println("Bluetooth device active, waiting for connections...");
+	blink();
+
+	// set advertised local name and service UUID:
+	BLE.setDeviceName(DEVICE_NAME);
+	BLE.setLocalName(DEVICE_NAME);
+	BLE.setAdvertisedService(TempSensor);
 
 	TempSensor.addCharacteristic(Temperature);
 	BLE.addService(TempSensor);
-
+	Temperature.setValue("DEADBEEF");
 	// Build scan response data packet
-	BLEAdvertisingData scanData;
-	scanData.setLocalName("FOOBAR Temperature");
+	//BLEAdvertisingData scanData;
+	//scanData.setLocalName("FOOBAR Temperature");
 	// Copy set parameters in the actual scan response packet
-	BLE.setScanResponseData(scanData);
+	//BLE.setScanResponseData(scanData);
 
 	BLE.advertise();
 	println("advertising ...");
+	blink();
 }
 
 void loop()
 {
 	unsigned long current_time = millis() / 1000;
+	BLEDevice central = BLE.central();
 
+	if (central) {
+		static unsigned long last_time = 0;
+		if (current_time - last_time  >= 10) {
+			print("Connected to central: ");
+			println(central.address());
+			last_time = current_time;
+		}
+	}
 	if (data_ready) {
 		noInterrupts();
-
+		switchled();
 		int humidity, temp_deci, ident, channel;
 		unsigned char data_u4[MAX_DATASZ / 4 + 1];
 		
@@ -471,7 +541,9 @@ void loop()
 			
 		ident = (data_u4[0] << 4) + data_u4[1];
 		channel  = (data_u4[2] & 0x3);
-		temp_deci = (data_u4[3] << 8) + (data_u4[4] << 4) + data_u4[5];
+		temp_deci = int12toshort((data_u4[3] << 8) +
+					 (data_u4[4] << 4) +
+					 data_u4[5]);
 		if (data_ready == 1) {
 			/* Channel number coded from zero */
 			channel++;
@@ -480,14 +552,14 @@ void loop()
 			temp_deci -= 900;
 			humidity = (data_u4[6] << 4) + data_u4[7];
 		}
-		
+
 		print(ident);
 		print(": ch");
 		print(channel);
 		print("\t");
 		print(temp_deci / 10);
 		print(".");
-		print(temp_deci % 10);
+		print(abs(temp_deci % 10));
 		if (data_ready ==1) {
 			print("C\t");
 		} else {
@@ -499,27 +571,36 @@ void loop()
 		print(humidity);
 		println("%");
 
-		if (data_ready ==1) {			
-			add_entry(ident, channel, current_time,
+		if (data_ready ==1) {
+			struct entry e;
+			set_entry(&e, ident, channel, current_time,
 				  temp_deci, humidity);
 #if DEBUG >= 2
-			print_all_entries();
+			//print_all_entries();
 #endif
+
+			/* TODO: Wrong value here */
+			print_entry(&e);
+			//switchled();
+			Temperature.setValue((uint8_t*)&e, 9);
 		}
-		/* TODO: Wrong value here */
-		Temperature.setValue(temp_deci);
-		
 		data_ready = 0;
+		switchled();
 		interrupts();
 	}
-	if (age(last_cleanup, current_time) > CLEANUP_FREQ) {
+/*	if (age(last_cleanup, current_time) > CLEANUP_FREQ) {
 		println("Cleanup:");
 		print_all_entries();
 		cleanup_stale_entry(current_time);
 		print_all_entries();
 		last_cleanup = current_time;
+		}*/
+#ifdef DEBUG
+	if (age(last_freeram, current_time) > FREERAM_FREQ) {
+		display_freeram();
+		last_freeram = current_time;
 	}
-
+#endif
 #if DEBUG >= 3
 	if (buffer_full) {
 		for (int i = 0; i < RING_BUFFER_SIZE; i++) {
