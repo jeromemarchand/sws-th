@@ -310,7 +310,7 @@ void handler()
 		return;
 	}
 
-	long time = micros();
+	unsigned long time = micros();
 	duration = time - lastTime;
 	lastTime = time;
 
