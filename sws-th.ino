@@ -145,7 +145,6 @@ IS_VALUE(7);
 IS_VALUE(8);
 
 struct entry {
-	unsigned long timestamp;
 	short temp;
 	unsigned char ident;
 	unsigned char channel;
@@ -153,10 +152,9 @@ struct entry {
 };
 
 void set_entry(struct entry *e, unsigned char ident, unsigned char channel,
-	       unsigned long timestamp, short temp, unsigned char humidity) {
+	       short temp, unsigned char humidity) {
 	e->ident = ident;
 	e->channel = channel;
-	e->timestamp = timestamp;
 	e->temp = temp;
 	e->humidity = humidity;
 }
@@ -178,8 +176,6 @@ void print_entry(struct entry *e) {
 	print("/");
 	print(e->channel);
 	print(":\t");
-	print(e->timestamp);
-	print("s\t");
 	print(e->temp);
 	print("dC\t");
 	print(e->humidity);
@@ -198,7 +194,7 @@ unsigned long last_cleanup = 0;
 
 BLEService TempSensor(SERVICE_TEMPSENSOR_UUID);
 BLECharacteristic Temperature(CHAR_TEMPERATURE_UUID, BLERead | BLEIndicate,
-			      9, true);
+			      CHRC_METEODATA_LEN, true);
 
 char duration_to_bit(unsigned long d)
 {
@@ -376,7 +372,7 @@ void setup()
 
 	TempSensor.addCharacteristic(Temperature);
 	BLE.addService(TempSensor);
-	Temperature.setValue("DEADBEEF");
+	Temperature.setValue("DEAD");
 	// Build scan response data packet
 	//BLEAdvertisingData scanData;
 	//scanData.setLocalName("FOOBAR Temperature");
@@ -477,17 +473,17 @@ void loop()
 		println("%");
 
 		if (data_ready ==1) {
-			static struct entry last = {0, 0, 0, 0, 0};
+			static struct entry last = {0, 0, 0, 0};
+			static unsigned long last_timestamp = 0;
 			struct entry e;
 
-			set_entry(&e, ident, channel, current_time,
-				  temp_deci, humidity);
+			set_entry(&e, ident, channel, temp_deci, humidity);
 			print_entry(&e);
 
 			/* Only update non duplicate value */
 			if ((e.ident == last.ident) &&
 			    (e.channel == last.channel) &&
-			    (age(last.timestamp, e.timestamp) < 2)) {
+			    (age(last_timestamp, current_time) < 2)) {
 				if ((e.temp != last.temp) ||
 				    (e.humidity != last.humidity)) {
 					println("Values dont match:");
@@ -495,8 +491,10 @@ void loop()
 					inc_general_error();
 				}
 			} else
-				Temperature.setValue((uint8_t*)&e, 9);
+				Temperature.setValue((uint8_t*)&e,
+						     CHRC_METEODATA_LEN);
 			memcpy(&last, &e, sizeof(struct entry));
+			last_timestamp = current_time;
 		}
 		data_ready = 0;
 		switchled();

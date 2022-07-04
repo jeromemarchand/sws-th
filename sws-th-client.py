@@ -60,10 +60,10 @@ def temperature_changed_cb(iface, changed_props, invalidated_props):
         return
 
     bvalue = bytes(value)
-    entry = unpack('IhBBB', bvalue)
-    print("Sensor ", entry[2], " channel ", entry[3], " : ",
-          entry[1]/10, "C ", entry[4], "%")
-    meteodata[(entry[2],entry[3])] = (entry[1]/10, entry[4], date)
+    entry = unpack('hBBB', bvalue)
+    print("Sensor ", entry[1], " channel ", entry[2], " : ",
+          entry[0]/10, "C ", entry[3], "%")
+    meteodata[(entry[1],entry[2])] = (entry[0]/10, entry[3], date)
     print(meteodata)
 
 
