@@ -108,8 +108,6 @@ void panic() {
 #define DATASZ2 41
 #define SYNC_SEQ_LEN 8
 #define MAX_DATASZ MAX(DATASZ1, DATASZ2)
-#define MAX_ENTRY_AGE 3600 /* Don't keep entry older than 1h */
-#define CLEANUP_FREQ 600   /* Cleanup stale entries every 10 mins */
 
 #define VALUES 9
 #define VALUE0_MIN 200
@@ -152,10 +150,7 @@ struct entry {
 	unsigned char ident;
 	unsigned char channel;
 	unsigned char humidity;
-//	struct entry *next;
 };
-
-struct entry *head = NULL;
 
 void set_entry(struct entry *e, unsigned char ident, unsigned char channel,
 	       unsigned long timestamp, short temp, unsigned char humidity) {
@@ -164,81 +159,7 @@ void set_entry(struct entry *e, unsigned char ident, unsigned char channel,
 	e->timestamp = timestamp;
 	e->temp = temp;
 	e->humidity = humidity;
-//	e->next = NULL;
 }
-
-
-/* struct entry *create_entry(unsigned char ident, unsigned char channel, */
-/* 			   unsigned long timestamp, short temp, */
-/* 			   unsigned char humidity) { */
-/* 	struct entry *e = (struct entry *) malloc(sizeof(struct entry)); */
-/* 	if (!e) */
-/* 		println("Can't allocate memory!"); */
-
-/* 	set_entry(e, ident, channel, timestamp, temp, humidity); */
-
-/* 	return e; */
-/* } */
-
-/* inline int update_entry(struct entry *e, unsigned long timestamp, */
-/* 			short temp, unsigned char humidity) { */
-/* 	/\* TODO: might use redondency for error correction *\/ */
-/* 	if(e->timestamp == timestamp) */
-/* 		/\* */
-/* 		 * We receive a lot of duplicate, */
-/* 		 * no need to update each time */
-/* 		 *\/ */
-/* 		return false; */
-
-/* 	e->timestamp = timestamp; */
-/* 	e->temp = temp; */
-/* 	e->humidity = humidity; */
-
-/* 	return true; */
-/* } */
-
-/* struct entry *add_entry(unsigned char ident, unsigned char channel, */
-/* 			unsigned long timestamp, short temp, */
-/* 			unsigned char humidity) { */
-/* 	struct entry *prev = head, *e; */
-
-/* 	for (e = head; e != NULL; e = e->next) { */
-/* 		if ((e->ident == ident) && (e->channel == channel)) { */
-/* 			update_entry(e, timestamp, temp, humidity); */
-/* 			return e; */
-/* 		} */
-/* 		prev = e; */
-/* 	} */
-
-/* 	e = create_entry(ident, channel, timestamp, temp, humidity); */
-/* 	if (!head) */
-/* 		head = e; */
-/* 	else */
-/* 		prev->next = e; */
-
-/* 	return e; */
-/* } */
-
-/* void remove_entry(struct entry *e, struct entry *prev) { */
-/* 	if (!prev) { */
-/* #ifdef DEBUG */
-/* 		if (e != head) { */
-/* 			println("ERROR: removing head"); */
-/* 			return; */
-/* 		} else */
-/* #endif */
-/* 			head = NULL; */
-/* 	} else { */
-/* #ifdef DEBUG */
-/* 		if (prev->next != e) { */
-/* 			println("ERROR: removing entry"); */
-/* 			return; */
-/* 		} else */
-/* #endif */
-/* 			prev->next = e->next; */
-/* 	} */
-/* 	free(e); */
-/* } */
 
 inline short int12toshort(short x) {
 	return x & 0x800 ? x | 0xf000 : x;
@@ -250,16 +171,6 @@ unsigned long age(unsigned long old, unsigned long current) {
 	else /* Overflow detected */
 		return ULONG_MAX / 1000 - old + current;
 }
-
-/*
-void cleanup_stale_entry(unsigned long current_time) {
-	struct entry *prev = head, *e;
-	for (e = head; e != NULL; e = e->next) {
-		if (age(e->timestamp, current_time) > MAX_ENTRY_AGE)
-			remove_entry(e, prev);
-		prev = e;
-	}
-	}*/
 
 #if DEBUG >= 1
 void print_entry(struct entry *e) {
@@ -274,14 +185,8 @@ void print_entry(struct entry *e) {
 	print(e->humidity);
 	println("%");
 }
-/*void print_all_entries() {
-	struct entry *e;
-	for (e = head; e != NULL; e = e->next)
-		print_entry(e);
-		}*/
 #else
 void print_entry(struct entry *e) {}
-//void print_all_entries() {}
 #endif
 
 int irq = digitalPinToInterrupt(DATA_PIN);
@@ -574,12 +479,11 @@ void loop()
 		if (data_ready ==1) {
 			static struct entry last = {0, 0, 0, 0, 0};
 			struct entry e;
+
 			set_entry(&e, ident, channel, current_time,
 				  temp_deci, humidity);
-#if DEBUG >= 2
-			//print_all_entries();
-#endif
 			print_entry(&e);
+
 			/* Only update non duplicate value */
 			if ((e.ident == last.ident) &&
 			    (e.channel == last.channel) &&
@@ -598,13 +502,6 @@ void loop()
 		switchled();
 		interrupts();
 	}
-/*	if (age(last_cleanup, current_time) > CLEANUP_FREQ) {
-		println("Cleanup:");
-		print_all_entries();
-		cleanup_stale_entry(current_time);
-		print_all_entries();
-		last_cleanup = current_time;
-		}*/
 #ifdef DEBUG
 	if (age(last_freeram, current_time) > FREERAM_FREQ) {
 		display_freeram();
