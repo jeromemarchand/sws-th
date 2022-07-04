@@ -572,17 +572,27 @@ void loop()
 		println("%");
 
 		if (data_ready ==1) {
+			static struct entry last = {0, 0, 0, 0, 0};
 			struct entry e;
 			set_entry(&e, ident, channel, current_time,
 				  temp_deci, humidity);
 #if DEBUG >= 2
 			//print_all_entries();
 #endif
-
-			/* TODO: Wrong value here */
 			print_entry(&e);
-			//switchled();
-			Temperature.setValue((uint8_t*)&e, 9);
+			/* Only update non duplicate value */
+			if ((e.ident == last.ident) &&
+			    (e.channel == last.channel) &&
+			    (age(last.timestamp, e.timestamp) < 2)) {
+				if ((e.temp != last.temp) ||
+				    (e.humidity != last.humidity)) {
+					println("Values dont match:");
+					print_entry(&last);
+					inc_general_error();
+				}
+			} else
+				Temperature.setValue((uint8_t*)&e, 9);
+			memcpy(&last, &e, sizeof(struct entry));
 		}
 		data_ready = 0;
 		switchled();
