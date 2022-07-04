@@ -1,7 +1,6 @@
 /*
- * Read data from temperature sensor Sencor SWS TH2850-2999-3851-5150
- * with a RF433 module
- *
+ * Read data from temperature and humidity sensor
+ * Sencor SWS TH2850-2999-3851-5150 with a RF433 module
  */
 #include <ArduinoBLE.h>
 #include <limits.h>
@@ -192,9 +191,9 @@ volatile int dataframesz;
 volatile int data_ready = 0;
 unsigned long last_cleanup = 0;
 
-BLEService TempSensor(SERVICE_TEMPSENSOR_UUID);
-BLECharacteristic Temperature(CHAR_TEMPERATURE_UUID, BLERead | BLEIndicate,
-			      CHRC_METEODATA_LEN, true);
+BLEService TempSensor(SVC_TEMPSENSOR_UUID);
+BLECharacteristic Meteodata(CHRC_METEODATA_UUID, BLERead | BLEIndicate,
+			    CHRC_METEODATA_LEN, true);
 
 char duration_to_bit(unsigned long d)
 {
@@ -370,12 +369,12 @@ void setup()
 	BLE.setLocalName(DEVICE_NAME);
 	BLE.setAdvertisedService(TempSensor);
 
-	TempSensor.addCharacteristic(Temperature);
+	TempSensor.addCharacteristic(Meteodata);
 	BLE.addService(TempSensor);
-	Temperature.setValue("DEAD");
+	Meteodata.setValue("DEAD");
 	// Build scan response data packet
 	//BLEAdvertisingData scanData;
-	//scanData.setLocalName("FOOBAR Temperature");
+	//scanData.setLocalName(DEVICE_NAME);
 	// Copy set parameters in the actual scan response packet
 	//BLE.setScanResponseData(scanData);
 
@@ -491,8 +490,8 @@ void loop()
 					inc_general_error();
 				}
 			} else
-				Temperature.setValue((uint8_t*)&e,
-						     CHRC_METEODATA_LEN);
+				Meteodata.setValue((uint8_t*)&e,
+						   CHRC_METEODATA_LEN);
 			memcpy(&last, &e, sizeof(struct entry));
 			last_timestamp = current_time;
 		}

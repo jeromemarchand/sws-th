@@ -21,13 +21,14 @@ BLUEZ_DEV_IFACE = 'org.bluez.Device1'
 GATT_SVC_IFACE =  'org.bluez.GattService1'
 GATT_CHRC_IFACE = 'org.bluez.GattCharacteristic1'
 
-DEVICE_NAME = "FOOBAR Temperature"
-SVC_TEMPSENSOR_UUID =   "f553e510-5dc3-409e-858a-98b69a4f2e2b"
-CHRC_TEMPERATURE_UUID = "f553e511-5dc3-409e-858a-98b69a4f2e2b"
+DEVICE_NAME =         "Meteodata"
+SVC_TEMPSENSOR_UUID = "f553e510-5dc3-409e-858a-98b69a4f2e2b"
+CHRC_METEODATA_UUID = "f553e511-5dc3-409e-858a-98b69a4f2e2b"
+CHRC_METEODATA_FMT =  "hBBB"
 
 # The objects that we interact with.
 tempsensor_service = None
-temperature_chrc = None
+meteodata_chrc = None
 
 
 # Dictionnary: key is a couple (identifier, channel)
@@ -39,11 +40,11 @@ def generic_error_cb(error):
     mainloop.quit()
 
 
-def temperature_start_notify_cb():
-    print('Temperature notifications enabled')
+def meteodata_start_notify_cb():
+    print('Meteodata notifications enabled')
 
 prop_iface_sig = None
-def temperature_changed_cb(iface, changed_props, invalidated_props):
+def meteodata_changed_cb(iface, changed_props, invalidated_props):
     date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
     if iface != GATT_CHRC_IFACE:
         print("Wrong iface:")
@@ -60,7 +61,7 @@ def temperature_changed_cb(iface, changed_props, invalidated_props):
         return
 
     bvalue = bytes(value)
-    entry = unpack('hBBB', bvalue)
+    entry = unpack(CHRC_METEODATA_FMT, bvalue)
     print("Sensor ", entry[1], " channel ", entry[2], " : ",
           entry[0]/10, "C ", entry[3], "%")
     meteodata[(entry[1],entry[2])] = (entry[0]/10, entry[3], date)
@@ -72,13 +73,13 @@ def start_client():
     # Listen to PropertiesChanged signals from the Heart Measurement
     # Characteristic.
     print("Connect to changed properties:")
-    prop_iface = dbus.Interface(temperature_chrc[0], DBUS_PROP_IFACE)
+    prop_iface = dbus.Interface(meteodata_chrc[0], DBUS_PROP_IFACE)
     prop_iface_sig = prop_iface.connect_to_signal("PropertiesChanged",
-                                                  temperature_changed_cb)
+                                                  meteodata_changed_cb)
 
     # Subscribe to Heart Rate Measurement notifications.
     print("Start notifications:")
-    temperature_chrc[0].StartNotify(reply_handler=temperature_start_notify_cb,
+    meteodata_chrc[0].StartNotify(reply_handler=meteodata_start_notify_cb,
                                     error_handler=generic_error_cb,
                                     dbus_interface=GATT_CHRC_IFACE)
 
@@ -89,9 +90,9 @@ def stop_client():
 
 def clear_svc_and_chrc():
     global tempsensor_service
-    global temperature_chrc
+    global meteodata_chrc
     tempsensor_service = None
-    temperature_chrc = None
+    meteodata_chrc = None
 
 
 def process_chrc(chrc_path):
@@ -101,10 +102,10 @@ def process_chrc(chrc_path):
 
     uuid = chrc_props['UUID']
 
-    if uuid == CHRC_TEMPERATURE_UUID:
-        print('Temperature characteristic found' + chrc_path);
-        global temperature_chrc
-        temperature_chrc = (chrc, chrc_props)
+    if uuid == CHRC_METEODATA_UUID:
+        print('Meteodata characteristic found' + chrc_path);
+        global meteodata_chrc
+        meteodata_chrc = (chrc, chrc_props)
     else:
         print('Unrecognized characteristic: ' + uuid)
 
