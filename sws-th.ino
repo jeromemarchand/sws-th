@@ -148,14 +148,16 @@ struct entry {
 	unsigned char ident;
 	unsigned char channel;
 	unsigned char humidity;
+	unsigned char fahrenheit; /* 0 if celcius, 1 if fahrenheit */
 };
 
 void set_entry(struct entry *e, unsigned char ident, unsigned char channel,
-	       short temp, unsigned char humidity) {
+	       short temp, unsigned char humidity, unsigned char fahrenheit) {
 	e->ident = ident;
 	e->channel = channel;
 	e->temp = temp;
 	e->humidity = humidity;
+	e->fahrenheit = fahrenheit;
 }
 
 inline short int12toshort(short x) {
@@ -471,30 +473,31 @@ void loop()
 		print(humidity);
 		println("%");
 
-		if (data_ready ==1) {
-			static struct entry last = {0, 0, 0, 0};
-			static unsigned long last_timestamp = 0;
-			struct entry e;
+		static struct entry last = {0, 0, 0, 0, 0};
+		static unsigned long last_timestamp = 0;
+		struct entry e;
 
-			set_entry(&e, ident, channel, temp_deci, humidity);
-			print_entry(&e);
+		set_entry(&e, ident, channel, temp_deci,
+			  humidity, data_ready == 2);
+		print_entry(&e);
 
-			/* Only update non duplicate value */
-			if ((e.ident == last.ident) &&
-			    (e.channel == last.channel) &&
-			    (age(last_timestamp, current_time) < 2)) {
-				if ((e.temp != last.temp) ||
-				    (e.humidity != last.humidity)) {
-					println("Values dont match:");
-					print_entry(&last);
-					inc_general_error();
-				}
-			} else
-				Meteodata.setValue((uint8_t*)&e,
-						   CHRC_METEODATA_LEN);
-			memcpy(&last, &e, sizeof(struct entry));
-			last_timestamp = current_time;
-		}
+		/* Only update non duplicate value */
+		if ((e.ident == last.ident) &&
+		    (e.channel == last.channel) &&
+		    (e.fahrenheit == last.fahrenheit) &&
+		    (age(last_timestamp, current_time) < 2)) {
+			if ((e.temp != last.temp) ||
+			    (e.humidity != last.humidity)) {
+				println("Values dont match:");
+				print_entry(&last);
+				inc_general_error();
+			}
+		} else
+			Meteodata.setValue((uint8_t*)&e,
+					   CHRC_METEODATA_LEN);
+		memcpy(&last, &e, sizeof(struct entry));
+		last_timestamp = current_time;
+
 		data_ready = 0;
 		switchled();
 		interrupts();

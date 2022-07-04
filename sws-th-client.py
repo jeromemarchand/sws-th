@@ -24,14 +24,14 @@ GATT_CHRC_IFACE = 'org.bluez.GattCharacteristic1'
 DEVICE_NAME =         "Meteodata"
 SVC_TEMPSENSOR_UUID = "f553e510-5dc3-409e-858a-98b69a4f2e2b"
 CHRC_METEODATA_UUID = "f553e511-5dc3-409e-858a-98b69a4f2e2b"
-CHRC_METEODATA_FMT =  "hBBB"
+CHRC_METEODATA_FMT =  "hBBBB"
 
 # The objects that we interact with.
 tempsensor_service = None
 meteodata_chrc = None
 
 
-# Dictionnary: key is a couple (identifier, channel)
+# Dictionnary: key is a tuple (identifier, channel, unit)
 # value is a tuple (temperature, humidity, timestamp)
 meteodata = {}
 
@@ -62,9 +62,13 @@ def meteodata_changed_cb(iface, changed_props, invalidated_props):
 
     bvalue = bytes(value)
     entry = unpack(CHRC_METEODATA_FMT, bvalue)
+    if entry[4] == 1:
+        tunit = "F"
+    else:
+        tunit = "C"
     print("Sensor ", entry[1], " channel ", entry[2], " : ",
-          entry[0]/10, "C ", entry[3], "%")
-    meteodata[(entry[1],entry[2])] = (entry[0]/10, entry[3], date)
+          entry[0]/10, tunit, entry[3], "%")
+    meteodata[(entry[1],entry[2],entry[4])] = (entry[0]/10, entry[3], date)
     print(meteodata)
 
 
