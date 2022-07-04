@@ -8,6 +8,7 @@ from time import sleep
 from dbus.mainloop.glib import DBusGMainLoop
 from struct import unpack
 import bluezutils
+import datetime
 
 bus = None
 mainloop = None
@@ -28,6 +29,11 @@ CHRC_TEMPERATURE_UUID = "f553e511-5dc3-409e-858a-98b69a4f2e2b"
 tempsensor_service = None
 temperature_chrc = None
 
+
+# Dictionnary: key is a couple (identifier, channel)
+# value is a tuple (temperature, humidity, timestamp)
+meteodata = {}
+
 def generic_error_cb(error):
     print('D-Bus call failed: ' + str(error))
     mainloop.quit()
@@ -38,6 +44,7 @@ def temperature_start_notify_cb():
 
 prop_iface_sig = None
 def temperature_changed_cb(iface, changed_props, invalidated_props):
+    date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
     if iface != GATT_CHRC_IFACE:
         print("Wrong iface:")
         print(iface)
@@ -56,6 +63,8 @@ def temperature_changed_cb(iface, changed_props, invalidated_props):
     entry = unpack('IhBBB', bvalue)
     print("Sensor ", entry[2], " channel ", entry[3], " : ",
           entry[1]/10, "C ", entry[4], "%")
+    meteodata[(entry[2],entry[3])] = (entry[1]/10, entry[4], date)
+    print(meteodata)
 
 
 def start_client():
