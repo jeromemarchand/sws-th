@@ -10,6 +10,7 @@ from struct import unpack
 import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+import argparse
 
 bus = None
 mainloop = None
@@ -35,6 +36,11 @@ meteodata_chrc = None
 
 # Output file
 ofile = None
+verbose = False
+
+def vprint(*args, **kwargs):
+    if verbose:
+        print(*args, **kwargs)
 
 # Dictionnary: key is a tuple (identifier, channel, unit)
 # value is a tuple (temperature, humidity, timestamp)
@@ -62,28 +68,28 @@ def find_adapter_in_objects(objects):
 
 
 def generic_error_cb(error):
-    print('D-Bus call failed: ' + str(error))
+    vprint('D-Bus call failed: ' + str(error))
     mainloop.quit()
 
 
 def meteodata_start_notify_cb():
-    print('Meteodata notifications enabled')
+    vprint('Meteodata notifications enabled')
 
 prop_iface_sig = None
 def meteodata_changed_cb(iface, changed_props, invalidated_props):
     date = datetime.datetime.now()
     if iface != GATT_CHRC_IFACE:
-        print("Wrong iface:")
-        print(iface)
+        vprint("Wrong iface:")
+        vprint(iface)
         return
 
     if not len(changed_props):
-        print("No changed_props")
+        vprint("No changed_props")
         return
 
     value = changed_props.get('Value', None)
     if not value:
-        print("No value")
+        vprint("No value")
         return
 
     bvalue = bytes(value)
@@ -92,23 +98,23 @@ def meteodata_changed_cb(iface, changed_props, invalidated_props):
         tunit = "F"
     else:
         tunit = "C"
-    print("Sensor ", entry[1], " channel ", entry[2], " : ",
-          entry[0]/10, tunit, entry[3], "%")
+    vprint("Sensor ", entry[1], " channel ", entry[2], " : ",
+           entry[0]/10, tunit, entry[3], "%")
     meteodata[(entry[1],entry[2],entry[4])] = (entry[0]/10, entry[3], date)
-    #print(meteodata)
+    #vprint(meteodata)
 
 
 def start_client():
     global prop_iface_sig
     # Listen to PropertiesChanged signals from the Heart Measurement
     # Characteristic.
-    print("Connect to changed properties:")
+    vprint("Connect to changed properties:")
     prop_iface = dbus.Interface(meteodata_chrc[0], DBUS_PROP_IFACE)
     prop_iface_sig = prop_iface.connect_to_signal("PropertiesChanged",
                                                   meteodata_changed_cb)
 
     # Subscribe to Heart Rate Measurement notifications.
-    print("Start notifications:")
+    vprint("Start notifications:")
     meteodata_chrc[0].StartNotify(reply_handler=meteodata_start_notify_cb,
                                     error_handler=generic_error_cb,
                                     dbus_interface=GATT_CHRC_IFACE)
@@ -133,11 +139,11 @@ def process_chrc(chrc_path):
     uuid = chrc_props['UUID']
 
     if uuid == CHRC_METEODATA_UUID:
-        print('Meteodata characteristic found' + chrc_path);
+        vprint('Meteodata characteristic found' + chrc_path);
         global meteodata_chrc
         meteodata_chrc = (chrc, chrc_props)
     else:
-        print('Unrecognized characteristic: ' + uuid)
+        vprint('Unrecognized characteristic: ' + uuid)
 
     return True
 
@@ -153,7 +159,7 @@ def process_ts_service(service_path, chrc_paths):
         return False
 
     stop_discovery()
-    print('TempSensor Service found: ' + service_path)
+    vprint('TempSensor Service found: ' + service_path)
 
     # Process the characteristics.
     for chrc_path in chrc_paths:
@@ -170,14 +176,14 @@ def interfaces_removed_cb(object_path, interfaces):
         return
 
     if object_path == tempsensor_service[2]:
-        print('Service was removed')
+        vprint('Service was removed')
         stop_client()
         clear_svc_and_chrc()
         mainloop.quit()
 
 
 def start_discovery():
-    print("Start discovery:")
+    vprint("Start discovery:")
     #scan_filter = { "UUIDs": SVC_TEMPSENSOR_UUID }
     scan_filter = {}
     adapter.SetDiscoveryFilter(scan_filter)
@@ -185,7 +191,7 @@ def start_discovery():
 
 
 def stop_discovery():
-    print("Stop discovery:")
+    vprint("Stop discovery:")
     adapter.StopDiscovery()
 
 
@@ -195,8 +201,8 @@ def convertFtoC(temp):
 
 def update_data():
     date = datetime.datetime.now()
-    print("Regular update: " + date.strftime(DATE_FMT))
-    print(meteodata)
+    vprint("Regular update: " + date.strftime(DATE_FMT))
+    vprint(meteodata)
     for key, value in meteodata.items():
         # Ignore outdated data
         if date - value[2] < datetime.timedelta(minutes=5):
@@ -210,15 +216,22 @@ def update_data():
                 ofile.write(date.strftime(DATE_FMT) +
                             f"{key[0]:4} {key[1]} {temp:8}C {value[1]}%\n")
 
-def usage():
-    print(f"Usage: {sys.argv[0]} output_file")
 
 def main():
-    if (len(sys.argv) != 2 ):
-        usage()
-        sys.exit()
+    parser = argparse.ArgumentParser(description='Read Meteodata')
+    parser.add_argument('-o', '--output',
+                        help='output file (default: stdout)')
+    parser.add_argument('-v', '--verbose', action='store_true',
+                        help="be more berbose")
+    args = parser.parse_args()
+
+    global verbose
+    verbose = args.verbose
     global ofile
-    ofile = open(sys.argv[1], 'a', encoding="utf-8", buffering=1)
+    if args.output:
+        ofile = open(args.output, 'a', encoding="utf-8", buffering=1)
+    else:
+        ofile = sys.stdout
     ofile.write("# Meteodata: " +
                 datetime.datetime.now().strftime(DATE_FMT) + "\n")
 
@@ -240,7 +253,7 @@ def main():
     start_discovery()
 
     while(True):
-        print('Getting objects...')
+        vprint('Getting objects...')
         objects = get_managed_objects()
         chrcs = []
         
@@ -248,27 +261,27 @@ def main():
             if "org.bluez.Device1" not in interfaces:
                 continue
             prop = interfaces[BLUEZ_DEV_IFACE]
-            print("%s %s" % (prop["Address"], prop["Alias"]))
+            vprint("%s %s" % (prop["Address"], prop["Alias"]))
             if (prop["Alias"] == DEVICE_NAME):
                 address = prop["Address"]
-                print("Found Device: " + path, address)
+                vprint("Found Device: " + path, address)
                 dev = dbus.Interface(bus.get_object(BLUEZ_SVC, path), BLUEZ_DEV_IFACE)
                 dev.Connect()
-                print("Connected");
+                vprint("Connected");
                 break
 
         # List characteristics found
         for path, interfaces in objects.items():
-            #print("CHRC:" + path)
-            #print(interfaces.keys())
+            #vprint("CHRC:" + path)
+            #vprint(interfaces.keys())
             if GATT_CHRC_IFACE not in interfaces.keys():
                 continue
-            #print("Add path: " + path);
+            #vprint("Add path: " + path);
             chrcs.append(path)
 
         # List services found
         for path, interfaces in objects.items():
-            #print("SVC:" + path);
+            #vprint("SVC:" + path);
             if GATT_SVC_IFACE not in interfaces.keys():
                 continue
 
@@ -278,7 +291,7 @@ def main():
                 break
 
         if not tempsensor_service:
-            print('No TempSensor Service found')
+            vprint('No TempSensor Service found')
             clear_svc_and_chrc()
             sleep(10)
             continue
