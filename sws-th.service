@@ -1,0 +1,14 @@
+[Unit]
+Description=Meteodata
+After=bluetooth.target local-fs.target
+
+StartLimitIntervalSec=500
+StartLimitBurst=5
+
+[Service]
+Restart=on-failure
+RestartSec=5s
+ExecStart=/usr/bin/sws-th-client.py -o /var/www/html/meteodata.log
+
+[Install]
+WantedBy=multi-user.target
