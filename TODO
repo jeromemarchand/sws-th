@@ -1,0 +1,5 @@
+- Add option parsing
+- Add --verbose option
+- Packaging
+- Archive data regularly (monthly?)
+- Increase TxPower
