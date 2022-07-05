@@ -7,7 +7,6 @@ import sys
 from time import sleep
 from dbus.mainloop.glib import DBusGMainLoop
 from struct import unpack
-import bluezutils
 import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -19,6 +18,7 @@ adapter = None
 BLUEZ_SVC =       'org.bluez'
 DBUS_OM_IFACE =   'org.freedesktop.DBus.ObjectManager'
 DBUS_PROP_IFACE = 'org.freedesktop.DBus.Properties'
+BLUEZ_ADP_IFACE = 'org.bluez.Adapter1'
 BLUEZ_DEV_IFACE = 'org.bluez.Device1'
 GATT_SVC_IFACE =  'org.bluez.GattService1'
 GATT_CHRC_IFACE = 'org.bluez.GattCharacteristic1'
@@ -39,6 +39,27 @@ ofile = None
 # Dictionnary: key is a tuple (identifier, channel, unit)
 # value is a tuple (temperature, humidity, timestamp)
 meteodata = {}
+
+def get_managed_objects():
+    bus = dbus.SystemBus()
+    manager = dbus.Interface(bus.get_object(BLUEZ_SVC, "/"), DBUS_OM_IFACE)
+    return manager.GetManagedObjects()
+
+
+def find_adapter():
+    return find_adapter_in_objects(get_managed_objects())
+
+
+def find_adapter_in_objects(objects):
+    bus = dbus.SystemBus()
+    for path, ifaces in objects.items():
+        adapter = ifaces.get(BLUEZ_ADP_IFACE)
+        if adapter is None:
+            continue
+        obj = bus.get_object(BLUEZ_SVC, path)
+        return dbus.Interface(obj, BLUEZ_ADP_IFACE)
+    raise Exception("Bluetooth adapter not found")
+
 
 def generic_error_cb(error):
     print('D-Bus call failed: ' + str(error))
@@ -215,14 +236,12 @@ def main():
     global mainloop
     mainloop = GLib.MainLoop()
     global adapter
-    adapter = bluezutils.find_adapter()
+    adapter = find_adapter()
     start_discovery()
 
     while(True):
         print('Getting objects...')
-        om = dbus.Interface(bus.get_object(BLUEZ_SVC, '/'), DBUS_OM_IFACE)
-        om.connect_to_signal('InterfacesRemoved', interfaces_removed_cb)
-        objects = om.GetManagedObjects()
+        objects = get_managed_objects()
         chrcs = []
         
         for path, interfaces in objects.items():
