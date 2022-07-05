@@ -9,6 +9,8 @@ from dbus.mainloop.glib import DBusGMainLoop
 from struct import unpack
 import bluezutils
 import datetime
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
 
 bus = None
 mainloop = None
@@ -25,11 +27,14 @@ DEVICE_NAME =         "Meteodata"
 SVC_TEMPSENSOR_UUID = "f553e510-5dc3-409e-858a-98b69a4f2e2b"
 CHRC_METEODATA_UUID = "f553e511-5dc3-409e-858a-98b69a4f2e2b"
 CHRC_METEODATA_FMT =  "hBBBB"
+DATE_FMT =            "%Y-%m-%d %H:%M"
 
 # The objects that we interact with.
 tempsensor_service = None
 meteodata_chrc = None
 
+# Output file
+ofile = None
 
 # Dictionnary: key is a tuple (identifier, channel, unit)
 # value is a tuple (temperature, humidity, timestamp)
@@ -45,7 +50,7 @@ def meteodata_start_notify_cb():
 
 prop_iface_sig = None
 def meteodata_changed_cb(iface, changed_props, invalidated_props):
-    date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    date = datetime.datetime.now()
     if iface != GATT_CHRC_IFACE:
         print("Wrong iface:")
         print(iface)
@@ -69,7 +74,7 @@ def meteodata_changed_cb(iface, changed_props, invalidated_props):
     print("Sensor ", entry[1], " channel ", entry[2], " : ",
           entry[0]/10, tunit, entry[3], "%")
     meteodata[(entry[1],entry[2],entry[4])] = (entry[0]/10, entry[3], date)
-    print(meteodata)
+    #print(meteodata)
 
 
 def start_client():
@@ -163,7 +168,46 @@ def stop_discovery():
     adapter.StopDiscovery()
 
 
+def convertFtoC(temp):
+    return round((temp - 32) / 1.8, 1);
+
+
+def update_data():
+    date = datetime.datetime.now()
+    print("Regular update: " + date.strftime(DATE_FMT))
+    print(meteodata)
+    for key, value in meteodata.items():
+        # Ignore outdated data
+        if date - value[2] < datetime.timedelta(minutes=5):
+            fahrenheit = key[2]
+            # Use celsius data when available, fahrenheit otherwise
+            if (fahrenheit == 0 or
+                ((key[0], key[1], 0) not in meteodata.keys())):
+                temp = value[0]
+                if fahrenheit == 1:
+                    temp = convertFtoC(temp)
+                ofile.write(date.strftime(DATE_FMT) +
+                            f"{key[0]:4} {key[1]} {temp:8}C {value[1]}%\n")
+
+def usage():
+    print(f"Usage: {sys.argv[0]} output_file")
+
 def main():
+    if (len(sys.argv) != 2 ):
+        usage()
+        sys.exit()
+    global ofile
+    ofile = open(sys.argv[1], 'a', encoding="utf-8", buffering=1)
+    ofile.write("# Meteodata: " +
+                datetime.datetime.now().strftime(DATE_FMT) + "\n")
+
+    scheduler = BackgroundScheduler()
+    scheduler.start()
+
+    trigger = CronTrigger(year="*", month="*", day="*",
+                          hour="*", minute="*/15", second="0")
+    scheduler.add_job(update_data, trigger=trigger)
+
     # Set up the main loop.
     DBusGMainLoop(set_as_default=True)
     global bus
@@ -173,7 +217,7 @@ def main():
     global adapter
     adapter = bluezutils.find_adapter()
     start_discovery()
-    
+
     while(True):
         print('Getting objects...')
         om = dbus.Interface(bus.get_object(BLUEZ_SVC, '/'), DBUS_OM_IFACE)
@@ -193,7 +237,6 @@ def main():
                 dev.Connect()
                 print("Connected");
                 break
-        
 
         # List characteristics found
         for path, interfaces in objects.items():
