@@ -116,7 +116,7 @@ def main():
 
     fig, axs = plt.subplots(2, 1)
     axs[0].set_ylabel('T°C')
-    axs[0].set_ylim(bottom=0, top=40)
+    axs[0].set_ylim(bottom=-10, top=40)
     axs[0].grid()
     axs[1].set_ylabel('Hum. %')
     axs[1].set_ylim(bottom=0, top=100)
