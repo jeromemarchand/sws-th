@@ -118,10 +118,16 @@ def main():
     fig, axs = plt.subplots(2, 1)
     axs[0].set_ylabel('T°C')
     axs[0].set_ylim(bottom=-10, top=40)
-    axs[0].grid()
+    axs[0].yaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(5))
+    axs[0].xaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(6))
+    axs[0].grid(which='major', alpha=0.5)
+    axs[0].grid(which='minor', alpha=0.2, linestyle=':')
     axs[1].set_ylabel('Hum. %')
     axs[1].set_ylim(bottom=0, top=100)
-    axs[1].grid()
+    axs[1].yaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(4))
+    axs[1].xaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(6))
+    axs[1].grid(which='major', alpha=0.5)
+    axs[1].grid(which='minor', alpha=0.2, linestyle=':')
     for sensor in sensors.keys():
         axs[0].plot(list(sensors[sensor]['temp'].keys()),
                     list(sensors[sensor]['temp'].values()), label = 'T°C ' + sensor)
