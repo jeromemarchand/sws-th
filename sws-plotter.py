@@ -114,6 +114,7 @@ def main():
             sensors[sensor]['temp'][time] = float(m.group(3))
             sensors[sensor]['humidity'][time] = float(m.group(4))
 
+    plt.rcParams["figure.figsize"] = (8,12)
     fig, axs = plt.subplots(2, 1)
     axs[0].set_ylabel('T°C')
     axs[0].set_ylim(bottom=-10, top=40)
