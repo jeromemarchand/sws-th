@@ -1,4 +1,7 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 /*
+ * Copyright (c) 2022 Jerome Marchand
+ *
  * Read data from temperature and humidity sensor
  * Sencor SWS TH2850-2999-3851-5150 with a RF433 module
  */
