@@ -130,7 +130,7 @@ def main():
     axs[1].xaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(6))
     axs[1].grid(which='major', alpha=0.5)
     axs[1].grid(which='minor', alpha=0.2, linestyle=':')
-    for sensor in sensors.keys():
+    for sensor in configsensors.values():
         axs[0].plot(list(sensors[sensor]['temp'].keys()),
                     list(sensors[sensor]['temp'].values()), label = 'T°C ' + sensor)
         axs[1].plot(list(sensors[sensor]['humidity'].keys()),
