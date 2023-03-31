@@ -69,14 +69,14 @@ def main():
     if args.configfile:
         configsensors = {}
         with open(args.configfile, 'r', encoding="utf-8") as f:
-            l = re.compile(r'\s*(\d*)\s*(\d)\s*(.*)\n')
+            l = re.compile(r'\s*(\d*)\s*(\d)\s*(.*)\n?')
             for line in f:
                 if line[0] == '#' or line == '\n':
                     # ignore comments or empty lines
                     continue
                 m = l.match(line)
                 if not m:
-                    print("Line doesn't match")
+                    print(f"Line doesn't match \"{line}\"")
                 configsensors[(m.group(1), m.group(2))] = m.group(3);
                 vprint(f'Named sensor: {m.group(3)}')
 
