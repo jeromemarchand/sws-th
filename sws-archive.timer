@@ -1,0 +1,8 @@
+[Unit]
+Description=Archive meteodata.log periodically
+
+[Timer]
+OnCalendar=Monthly
+
+[Install]
+WantedBy=timers.target

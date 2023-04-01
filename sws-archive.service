@@ -1,0 +1,9 @@
+[Unit]
+Description=Archive meteodata.log
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/sws-archive.py /var/www/html/meteodata.log
+
+[Install]
+WantedBy=multi-user.target
