@@ -131,10 +131,15 @@ def main():
     axs[1].grid(which='major', alpha=0.5)
     axs[1].grid(which='minor', alpha=0.2, linestyle=':')
     for sensor in configsensors.values():
-        axs[0].plot(list(sensors[sensor]['temp'].keys()),
-                    list(sensors[sensor]['temp'].values()), label = 'T°C ' + sensor)
-        axs[1].plot(list(sensors[sensor]['humidity'].keys()),
-                    list(sensors[sensor]['humidity'].values()), label = 'Hum % ' + sensor)
+        vprint(f'Processing sensor: {sensor}')
+        if sensor not in sensors:
+            vprint(f'No data from sensor {sensor}: skip')
+            continue
+        s = sensors[sensor]
+        axs[0].plot(list(s['temp'].keys()),
+                    list(s['temp'].values()), label = 'T°C ' + sensor)
+        axs[1].plot(list(s['humidity'].keys()),
+                    list(s['humidity'].values()), label = 'Hum % ' + sensor)
 
     axs[0].legend()
     axs[1].legend()
