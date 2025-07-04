@@ -12,6 +12,8 @@ import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 import argparse
+import socket
+import threading
 
 bus = None
 mainloop = None
@@ -34,6 +36,10 @@ DATE_FMT =            "%Y-%m-%d %H:%M"
 # The objects that we interact with.
 tempsensor_service = None
 meteodata_chrc = None
+
+# Local server
+HOST = "127.0.0.0"
+PORT = 12345
 
 # Output file
 ofile = None
@@ -217,6 +223,24 @@ def update_data():
                 ofile.write(date.strftime(DATE_FMT) +
                             f"{key[0]:4} {key[1]} {temp:8}C {value[1]}%\n")
 
+def accept_connections(s):
+    while True:
+        vprint("Ready to accept connections");
+        c, addr = s.accept()
+        vprint("Got connection from", addr)
+        # Dictionnary: key is a tuple (identifier, channel, unit)
+        # value is a tuple (temperature, humidity, timestamp)
+        message = ""
+        for key in meteodata:
+            value = meteodata[key]
+            if key[2] == 1:
+                unit = "F"
+            else:
+                unit = "C"
+            # "timestamp identifier channel tempC humidity%\n"
+            message += value[2].strftime(DATE_FMT) + f"{key[0]:4} {key[1]} {value[0]:8}{unit} {value[1]}%\n"
+        c.send(message.encode())
+        c.close()
 
 def main():
     parser = argparse.ArgumentParser(description='Read Meteodata')
@@ -252,6 +276,13 @@ def main():
     global adapter
     adapter = find_adapter()
     start_discovery()
+
+    # Set up local server
+    s = socket.socket()
+    s.bind((HOST, PORT))
+    s.listen()
+    socket_thread = threading.Thread(target=accept_connections, args=(s,))
+    socket_thread.start()
 
     while(True):
         vprint('Getting objects...')
