@@ -66,7 +66,7 @@ def main():
         exit();
 
     if True:
-        l = re.compile(r'(\d{4}-\d\d-\d\d \d\d:\d\d)\s*(\d* \d)\s*(-?\d*.\d)([CF]) (\d*)%')
+        l = re.compile(r'(\d{4}-\d\d-\d\d \d\d:\d\d)\s*(\d* \d)\s*(-?\d*.\d)([CF]) (\d*)%( (.*))?')
         s = re.compile(r'(\d*) (\d)')
         for line in message.splitlines():
             if line[0] == '#':
@@ -86,14 +86,14 @@ def main():
                 else:
                     sensor = configsensors[sensorid]
 
-            vprint(f'Date: {m.group(1)} Sensor: {sensor} Temp: {m.group(3)}{m.group(4)} Hum: {m.group(5)}')
+            vprint(f'Date: {m.group(1)} Sensor: {sensor} Temp: {m.group(3)}{m.group(4)} Hum: {m.group(5)} \"{m.group(7)}\"')
             time = dt.datetime.fromisoformat(m.group(1));
 
             # The file is in chronological order: just replace old value if there is one
             # Don't replace Celsius by Farenheit
             if m.group(4) == 'C' or not (sensor in sensors):
                 sensors[sensor] = {'temp':float(m.group(3)), 'unit':m.group(4),
-                                   'humidity':float(m.group(5)), 'time':time}
+                                   'humidity':float(m.group(5)), 'time':time, 'low_power':m.group(7)}
 
     if args.output:
         f = open(args.output, "w", encoding="utf-8")
@@ -105,13 +105,15 @@ def main():
         vprint(f'Processing sensor: {sensor}')
         if sensor not in sensors:
             vprint(f'Missing data for sensor: {sensor}')
-            s = {'temp':' ----', 'unit':'?', 'humidity':'----', 'time':'----'}
+            s = {'temp':' ----', 'unit':'?', 'humidity':'----', 'time':'----', 'low_power':''}
         else:
             s = sensors[sensor]
             tl = dt.datetime.combine(dt.date.today(), dt.time()) - dt.timedelta(minutes=15)
             if s['time'] > tl:
                 fresh = True
-        if fresh:
+        if s['low_power'] == "Low Power":
+            print("  <tr bgcolor=\"#FF9\">", file=f)
+        elif fresh:
             print("  <tr>", file=f)
         else:
             print("  <tr bgcolor=\"#EDD\">", file=f)

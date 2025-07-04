@@ -152,15 +152,18 @@ struct entry {
 	unsigned char channel;
 	unsigned char humidity;
 	unsigned char fahrenheit; /* 0 if celcius, 1 if fahrenheit */
+	unsigned char low_power; /* 1 if low battery, 0 otherwise */
 };
 
 void set_entry(struct entry *e, unsigned char ident, unsigned char channel,
-	       short temp, unsigned char humidity, unsigned char fahrenheit) {
+	       short temp, unsigned char humidity, unsigned char fahrenheit,
+	       unsigned char low_power) {
 	e->ident = ident;
 	e->channel = channel;
 	e->temp = temp;
 	e->humidity = humidity;
 	e->fahrenheit = fahrenheit;
+	e->low_power = low_power;
 }
 
 inline short int12toshort(short x) {
@@ -183,7 +186,10 @@ void print_entry(struct entry *e) {
 	print(e->temp);
 	print("dC\t");
 	print(e->humidity);
-	println("%");
+	print("%");
+	if(e->low_power)
+		print(" Low Power");
+	println("");
 }
 #else
 void print_entry(struct entry *e) {}
@@ -406,6 +412,7 @@ void loop()
 		switchled();
 		int humidity, temp_deci, ident, channel;
 		unsigned char data_u4[MAX_DATASZ / 4 + 1];
+		bool low_power;
 		
 		memset(data_u4, 0, dataframesz / 4 + 1);
 		
@@ -453,9 +460,11 @@ void loop()
 			/* Channel number coded from zero */
 			channel++;
 			humidity = (data_u4[7] << 4) + data_u4[8];
+			low_power = !(data_u4[2] & 0x8);
 		} else {
 			temp_deci -= 900;
 			humidity = (data_u4[6] << 4) + data_u4[7];
+			low_power = data_u4[2] & 0x8;
 		}
 
 		print(ident);
@@ -476,12 +485,12 @@ void loop()
 		print(humidity);
 		println("%");
 
-		static struct entry last = {0, 0, 0, 0, 0};
+		static struct entry last = {0, 0, 0, 0, 0, 0};
 		static unsigned long last_timestamp = 0;
 		struct entry e;
 
 		set_entry(&e, ident, channel, temp_deci,
-			  humidity, data_ready == 2);
+			  humidity, data_ready == 2, low_power);
 		print_entry(&e);
 
 		/* Only update non duplicate value */

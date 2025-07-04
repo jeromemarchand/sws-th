@@ -30,7 +30,7 @@ GATT_CHRC_IFACE = 'org.bluez.GattCharacteristic1'
 DEVICE_NAME =         "Meteodata"
 SVC_TEMPSENSOR_UUID = "f553e510-5dc3-409e-858a-98b69a4f2e2b"
 CHRC_METEODATA_UUID = "f553e511-5dc3-409e-858a-98b69a4f2e2b"
-CHRC_METEODATA_FMT =  "hBBBB"
+CHRC_METEODATA_FMT =  "hBBBBB"
 DATE_FMT =            "%Y-%m-%d %H:%M"
 
 # The objects that we interact with.
@@ -50,7 +50,7 @@ def vprint(*args, **kwargs):
         print(*args, **kwargs)
 
 # Dictionnary: key is a tuple (identifier, channel, unit)
-# value is a tuple (temperature, humidity, timestamp)
+# value is a tuple (temperature, humidity, timestamp, low_power)
 meteodata = {}
 
 def get_managed_objects():
@@ -105,9 +105,14 @@ def meteodata_changed_cb(iface, changed_props, invalidated_props):
         tunit = "F"
     else:
         tunit = "C"
+    if entry[5] == 0:
+        lp = ""
+    else:
+        lp = "Low Power"
+
     vprint("Sensor ", entry[1], " channel ", entry[2], " : ",
-           entry[0]/10, tunit, entry[3], "%")
-    meteodata[(entry[1],entry[2],entry[4])] = (entry[0]/10, entry[3], date)
+           entry[0]/10, tunit, entry[3], "% ", lp)
+    meteodata[(entry[1],entry[2],entry[4])] = (entry[0]/10, entry[3], date, lp)
     #vprint(meteodata)
 
 
@@ -229,7 +234,7 @@ def accept_connections(s):
         c, addr = s.accept()
         vprint("Got connection from", addr)
         # Dictionnary: key is a tuple (identifier, channel, unit)
-        # value is a tuple (temperature, humidity, timestamp)
+        # value is a tuple (temperature, humidity, timestamp, low_power)
         message = ""
         for key in meteodata:
             value = meteodata[key]
@@ -237,8 +242,8 @@ def accept_connections(s):
                 unit = "F"
             else:
                 unit = "C"
-            # "timestamp identifier channel tempC humidity%\n"
-            message += value[2].strftime(DATE_FMT) + f"{key[0]:4} {key[1]} {value[0]:8}{unit} {value[1]}%\n"
+            # "timestamp identifier channel tempC humidity% low_power\n"
+            message += value[2].strftime(DATE_FMT) + f"{key[0]:4} {key[1]} {value[0]:8}{unit} {value[1]}% {value[3]}\n"
         c.send(message.encode())
         c.close()
 
