@@ -158,7 +158,7 @@ Longer impulses 3, 4 and 8 (1000, 2000 and 4000 ms) are always
 followed by 1 (500ms)
 
 
-## Dataframe of the first format:
+## Dataframe of the first format (Celcius):
 
 ### Example
 
@@ -188,11 +188,14 @@ least it give coherent temperature and humidity values.
 ```
 0    4    8    12   16   20   24   28   32   36   40   44   48
 0000 0110 1000 0000 1100 0011 1111 0010 1110 0000 0000 0000 0000
-^ Ident ^ ??ch ^    TempC   ^ ?15? ^ Hum % ^ ^ ???? (Always 0) ^
+^ Ident ^ H?ch ^    TempC   ^ ?15? ^ Hum % ^ ^ ???? (Always 0) ^
 ```
 
 First 8 bits seems to be some kind of identifier. It's the same in
 both formats of dataframe.
+
+Bit 8 seems to be the battery charge signal. It's usually on, but
+become 0 when the battery voltage is low (a bit above 1V).
 
 The channel is encoded on bits 10-11. It's starts from zero and it
 needs to be incremented by 1 to match the value on the switch or the
@@ -212,7 +215,7 @@ range and just consider the value to be high or low.
 The sensor should also be able to send a low battery signal. I wasn't
 able to decode it yet.
 
-## Dataframe of the second format:
+## Dataframe of the second format (Fahrenheit):
 
 Dataframe is synchronized by a repeating 8 x 750ms impulse (22222222)
 It is 82 impulses long (without sync).
@@ -231,12 +234,13 @@ The dataframe is repeated about 25 times.
 ```
 0    4	  8    12   16   20   24   28   32   36   40
 0000 1111 0011 0110 0111 1110 0010 0010 1110 0101 0
-? Ident ? ??ch ^ Tf*10+900  ^ ^ Hum % ^   ?    ?  ?
+? Ident ? L?ch ^ Tf*10+900  ^ ^ Hum % ^   ?    ?  ?
 ```
 
-First 8 bits are the same identifier as in the first format.  The
-channel is encoded on bits 10-11. It matches the value on the sensor
-switch or the base.
+First 8 bits are the same identifier as in the first format.  Low
+power seems to be encoded on bit 8. Its value is reverse to what it is
+on the celcius format. The channel is encoded on bits 10-11. It
+matches the value on the sensor switch or the base.
 
 Temperature is located at bits 12-23. It is encoded in decidegree
 Fahrenheit with a 90°F offset on 12 bits. Humidity is at bits
