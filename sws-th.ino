@@ -7,7 +7,6 @@
  */
 #include <ArduinoBLE.h>
 #include <limits.h>
-//#include <stdlib.h>
 
 #include "sws-th.h"
 
@@ -109,7 +108,7 @@ void panic() {
 #define MIN_DATASZ1 36
 #define DATASZ2 41
 #define SYNC_SEQ_LEN 8
-#define MAX_DATASZ MAX(DATASZ1, DATASZ2)
+#define MAX_DATASZ DATASZ1
 
 #define VALUES 9
 #define VALUE0_MIN 200
