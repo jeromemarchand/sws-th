@@ -29,6 +29,38 @@ def read_socket():
 def read_file(ifile):
     return open(ifile, 'r', encoding="utf-8").read()
 
+def process_message(m, sensors, configsensors):
+    l = re.compile(r'(\d{4}-\d\d-\d\d \d\d:\d\d)\s*(\d* \d)\s*(-?\d*.\d)([CF]) (\d*)%( (.*))?')
+    s = re.compile(r'(\d*) (\d)')
+    for line in m.splitlines():
+        if line[0] == '#':
+            # TODO: uses regex to allow blank char before '#'?
+            continue
+        vprint(f'Processing line: {line}')
+        m = l.match(line)
+        if not m:
+            print(f"Line doesn't match: {line}")
+        sensor = m.group(2)
+        if configsensors:
+            mm = s.match(sensor)
+            sensorid = (mm.group(1), mm.group(2))
+            if sensorid not in configsensors:
+                vprint(f'Skipping unknown sensor: {sensor}')
+                continue
+            else:
+                sensor = configsensors[sensorid]
+
+        vprint(f'Date: {m.group(1)} Sensor: {sensor} Temp: {m.group(3)}{m.group(4)} Hum: {m.group(5)} \"{m.group(7)}\"')
+        time = dt.datetime.fromisoformat(m.group(1));
+
+        # Update the sensor if the data is more  recent
+        # Prefer Celsius to Farenheit
+        if not (sensor in sensors) or (sensors[sensor]['time'] < time) or ((sensors[sensor]['time'] == time) and (sensors[sensor]['unit'] == 'F') and  (m.group(4) == 'C')):
+            sensors[sensor] = {'temp':float(m.group(3)), 'unit':m.group(4),
+                               'humidity':float(m.group(5)), 'time':time, 'low_power':m.group(7)}
+
+    return sensors
+
 def main():
     parser = argparse.ArgumentParser(description='Extract latest temperatures')
     parser.add_argument('-c', '--configfile',
@@ -56,44 +88,17 @@ def main():
                     print(f"Line doesn't match \"{line}\"")
                 configsensors[(m.group(1), m.group(2))] = m.group(3);
                 vprint(f'Named sensor: {m.group(3)}')
-
-    if args.socket:
-        message = read_socket()
-    elif args.ifile:
-        message = read_file(args.ifile)
     else:
+        configsensors = None
+
+    sensors = {};
+    if args.socket:
+        sensors = process_message(read_socket(), sensors, configsensors) 
+    if args.ifile:
+        sensors = process_message(read_file(args.ifile), sensors, configsensors)
+    elif not args.socket:
         print("Error: no input\n")
         exit();
-
-    if True:
-        l = re.compile(r'(\d{4}-\d\d-\d\d \d\d:\d\d)\s*(\d* \d)\s*(-?\d*.\d)([CF]) (\d*)%( (.*))?')
-        s = re.compile(r'(\d*) (\d)')
-        for line in message.splitlines():
-            if line[0] == '#':
-                # TODO: uses regex to allow blank char before '#'?
-                continue
-            vprint(f'Processing line: {line}')
-            m = l.match(line)
-            if not m:
-                print(f"Line doesn't match: {line}")
-            sensor = m.group(2)
-            if args.configfile:
-                mm = s.match(sensor)
-                sensorid = (mm.group(1), mm.group(2))
-                if sensorid not in configsensors:
-                    vprint(f'Skipping unknown sensor: {sensor}')
-                    continue
-                else:
-                    sensor = configsensors[sensorid]
-
-            vprint(f'Date: {m.group(1)} Sensor: {sensor} Temp: {m.group(3)}{m.group(4)} Hum: {m.group(5)} \"{m.group(7)}\"')
-            time = dt.datetime.fromisoformat(m.group(1));
-
-            # The file is in chronological order: just replace old value if there is one
-            # Don't replace Celsius by Farenheit
-            if m.group(4) == 'C' or not (sensor in sensors):
-                sensors[sensor] = {'temp':float(m.group(3)), 'unit':m.group(4),
-                                   'humidity':float(m.group(5)), 'time':time, 'low_power':m.group(7)}
 
     if args.output:
         f = open(args.output, "w", encoding="utf-8")
