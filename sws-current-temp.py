@@ -13,6 +13,12 @@ def vprint(*args, **kwargs):
     if verbose:
         print(*args, **kwargs)
 
+def convertFtoC(temp):
+    return round((temp - 32) / 1.8, 1)
+
+def convertCtoF(temp):
+    return round(temp * 1.8 + 32, 1)
+
 sensors = {}
 
 # Local server
@@ -70,6 +76,9 @@ def main():
     parser.add_argument('-o', '--output', help="set output file")
     parser.add_argument('ifile', nargs='?', help="input file")
     parser.add_argument('-s', '--socket', action='store_true', help="connect to local socket")
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('-C', '--celcius', action='store_true', help="converts to Celsius")
+    group.add_argument('-F', '--fahrenheit', action='store_true', help="converts to Fahrenheit")
     args = parser.parse_args()
 
     global verbose
@@ -122,7 +131,16 @@ def main():
             print("  <tr>", file=f)
         else:
             print("  <tr bgcolor=\"#EDD\">", file=f)
-        print(f"    <td>{sensor:10}:</td> <td>{s['temp']:5}&deg;{s['unit']}</td> <td>{s['humidity']:4} %</td> <td>{s['time']}</td>", file=f)
+        if args.celcius and s['unit'] == 'F':
+            temp = convertFtoC(s['temp'])
+            unit = 'C'
+        elif args.fahrenheit and s['unit'] == 'C':
+            temp = convertCtoF(s['temp'])
+            unit = 'F'
+        else:
+            temp = s['temp']
+            unit =s['unit']
+        print(f"    <td>{sensor:10}:</td> <td>{temp:5}&deg;{unit}</td> <td>{s['humidity']:4} %</td> <td>{s['time']}</td>", file=f)
         print("  </tr>", file=f)
     print("</table>", file=f)
 
